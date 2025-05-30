@@ -1,4 +1,4 @@
-FROM gradle:21-jdk-jammy AS build
+FROM gradle:8.14.1-jdk21-jammy AS build
 LABEL authors="schlingel"
 COPY --chown=gradle:gradle . /home/gradle/src
 WORKDIR /home/gradle/src
