@@ -9,7 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RestController
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {
+        "http://localhost:5173", // local frontend development server
+        "https://event-calendar-frontend.onrender.com" // deployed frontend URL
+})
 public class EventController {
 
     @GetMapping("/events")
