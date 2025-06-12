@@ -23,3 +23,17 @@
 hs_err_pid*
 replay_pid*
 /.idea/
+
+# Gradle files
+.gradle/
+/build/
+
+# IntelliJ IDEA (if not already covered by /.idea/)
+# .idea/
+
+# Other common build artifacts
+/out/
+.project
+.classpath
+.settings/
+
