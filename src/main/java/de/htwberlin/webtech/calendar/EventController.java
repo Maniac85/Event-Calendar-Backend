@@ -1,11 +1,10 @@
 package de.htwberlin.webtech.calendar;
 
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
+import de.htwberlin.webtech.calendar.EventRepository;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -15,27 +14,24 @@ import java.util.List;
 })
 public class EventController {
 
+    private final EventRepository eventRepository; // Füge das Repository als finales Feld hinzu
+
+    // Konstruktor für Dependency Injection
+    // Spring wird hier automatisch eine Instanz von EventRepository einfügen
+    public EventController(EventRepository eventRepository) {
+        this.eventRepository = eventRepository;
+    }
+
     @GetMapping("/events")
     public List<Event> getEvents() {
-        List<Event> events = new ArrayList<>();
-        Event event1 = new Event(
-                1L,
-                "Projektarbeit",
-                "Letzten Stand abfragen",
-                LocalDateTime.of(2025, 5, 21, 10, 0),
-                LocalDateTime.of(2025, 5, 21, 11, 0)
-        );
-        events.add(event1);
+        // Ändere dies, um alle Events aus der Datenbank abzurufen
+        return eventRepository.findAll();
+    }
 
-        Event event2 = new Event(
-                2L,
-                "Abgabe",
-                "Alles hochladen",
-                LocalDateTime.of(2025, 7, 16, 12, 30),
-                LocalDateTime.of(2025, 7, 16, 13, 30)
-        );
-        events.add(event2);
-
-        return events;
+    // NEU: POST-Methode zum Erstellen eines neuen Events
+    @PostMapping("/events")
+    public Event createEvent(@RequestBody Event event) {
+        // Speichere das empfangene Event-Objekt in der Datenbank
+        return eventRepository.save(event);
     }
 }
