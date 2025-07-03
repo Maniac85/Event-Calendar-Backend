@@ -1,13 +1,16 @@
 package de.htwberlin.webtech.calendar.controller;
 
 import de.htwberlin.webtech.calendar.model.Event;
-import de.htwberlin.webtech.calendar.repository.EventRepository;
+import de.htwberlin.webtech.calendar.service.EventService;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,59 +22,114 @@ import java.util.Optional;
 })
 public class EventController {
 
-    private final EventRepository eventRepository;
+    private final EventService eventService; // Abhängigkeit zum EventService
 
-    // Konstruktor für Dependency Injection: Spring fügt automatisch eine Instanz von EventRepository ein
-    public EventController(EventRepository eventRepository) {
-        this.eventRepository = eventRepository;
+    // Konstruktor für Dependency Injection: Spring fügt automatisch eine Instanz von EventService ein
+    public EventController(EventService eventService) {
+        this.eventService = eventService;
     }
 
-    // POST-Methode: Erstellt ein neues Event
+    /**
+     * Erstellt ein neues Event.
+     * Erwartet ein Event-Objekt im Request Body.
+     * @param event Das zu erstellende Event-Objekt.
+     * @return Das erstellte Event mit generierter ID und Status 201 Created.
+     */
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED) // HTTP 201 Created Status
+    @ResponseStatus(HttpStatus.CREATED)
     public Event createEvent(@Valid @RequestBody Event event) {
-        // Speichert das neue Event in der Datenbank und gibt es zurück (mit generierter ID)
-        return eventRepository.save(event);
+        return eventService.createEvent(event);
     }
 
-    // GET-Methode: Ruft alle vorhandenen Events ab
+    /**
+     * Ruft alle Events ab, optional gefiltert nach Start-/Enddatum, Titel, Beschreibung oder Status.
+     * Wenn keine Filterparameter übergeben werden, werden alle Events zurückgegeben.
+     * @param startDate Filter: Events, die an oder nach diesem Datum beginnen.
+     * @param endDate Filter: Events, die an oder vor diesem Datum enden.
+     * @param title Filter: Events, deren Titel den angegebenen String enthält (fall-insensitiv).
+     * @param description Filter: Events, deren Beschreibung den angegebenen String enthält (fall-insensitiv).
+     * @param isCompleted Filter: Events nach ihrem Erledigungsstatus.
+     * @return Eine Liste von Events, die den Filterkriterien entsprechen.
+     */
     @GetMapping
-    public List<Event> getEvents() {
-        // Sucht und gibt alle Event-Entitäten aus der Datenbank zurück
-        return eventRepository.findAll();
+    public List<Event> getEvents(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false) Boolean isCompleted
+    ) {
+        // Prüft, ob irgendwelche Filterparameter vorhanden sind
+        if (startDate == null && endDate == null && title == null && description == null && isCompleted == null) {
+            // Wenn keine Filter vorhanden sind, gib alle Events zurück
+            return eventService.getAllEvents();
+        } else {
+            // Andernfalls, wende die Filter über den Service an
+            return eventService.getFilteredEvents(startDate, endDate, title, description, isCompleted);
+        }
     }
 
-    // GET-Methode: Ruft ein einzelnes Event anhand seiner ID ab
+    /**
+     * Ruft ein einzelnes Event anhand seiner ID ab.
+     * @param id Die ID des abzurufenden Events.
+     * @return Das Event-Objekt mit Status 200 OK, oder 404 Not Found, wenn das Event nicht existiert.
+     */
     @GetMapping("/{id}")
     public ResponseEntity<Event> getEventById(@PathVariable Long id) {
-        // Sucht ein Event anhand der ID. Wenn gefunden, gibt es 200 OK zurück, sonst 404 Not Found.
-        Optional<Event> event = eventRepository.findById(id);
+        Optional<Event> event = eventService.getEventById(id);
         return event.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    // PUT-Methode: Aktualisiert ein vorhandenes Event
+    /**
+     * Aktualisiert ein vorhandenes Event vollständig.
+     * Erwartet die ID des Events in der URL und das vollständige Event-Objekt im Request Body.
+     * @param id Die ID des zu aktualisierenden Events.
+     * @param updatedEvent Das Event-Objekt mit den aktualisierten Daten.
+     * @return Das aktualisierte Event mit Status 200 OK, oder 404 Not Found, wenn das Event nicht existiert.
+     */
     @PutMapping("/{id}")
     public ResponseEntity<Event> updateEvent(@PathVariable Long id, @Valid @RequestBody Event updatedEvent) {
-        // Prüft, ob das Event existiert. Wenn nicht, 404 Not Found.
-        if (!eventRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+        try {
+            Event savedEvent = eventService.updateEvent(id, updatedEvent);
+            return ResponseEntity.ok(savedEvent);
+        } catch (ResponseStatusException e) {
+            // Fängt Ausnahmen vom Service ab und gibt den entsprechenden HTTP-Status zurück (z.B. 404)
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-        // Setzt die ID des Updates auf die ID aus der URL und speichert die Änderungen
-        updatedEvent.setId(id);
-        Event savedEvent = eventRepository.save(updatedEvent);
-        return ResponseEntity.ok(savedEvent); // 200 OK mit dem aktualisierten Event
     }
 
-    // DELETE-Methode: Löscht ein Event
+    /**
+     * Löscht ein Event anhand seiner ID.
+     * @param id Die ID des zu löschenden Events.
+     * @return Status 204 No Content bei Erfolg, oder 404 Not Found, wenn das Event nicht existiert.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
-        // Prüft, ob das Event existiert. Wenn nicht, 404 Not Found.
-        if (!eventRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+        try {
+            eventService.deleteEvent(id);
+            return ResponseEntity.noContent().build();
+        } catch (ResponseStatusException e) {
+            // Fängt Ausnahmen vom Service ab und gibt den entsprechenden HTTP-Status zurück (z.B. 404)
+            return ResponseEntity.status(e.getStatusCode()).build();
         }
-        // Löscht das Event aus der Datenbank
-        eventRepository.deleteById(id);
-        return ResponseEntity.noContent().build(); // 204 No Content (erfolgreich, aber keine Daten zurück)
+    }
+
+    /**
+     * Aktualisiert den Erledigungsstatus eines Events.
+     * Verwendet PATCH, um nur einen Teil der Ressource zu ändern.
+     * @param id Die ID des Events, dessen Status aktualisiert werden soll.
+     * @param isCompleted Der neue Erledigungsstatus (true für erledigt, false für nicht erledigt).
+     * @return Das aktualisierte Event mit Status 200 OK, oder 404 Not Found, wenn das Event nicht existiert.
+     */
+    @PatchMapping("/{id}/complete")
+    public ResponseEntity<Event> markEventAsCompleted(@PathVariable Long id, @RequestParam Boolean isCompleted) {
+        try {
+            Event updatedEvent = eventService.updateEventCompletionStatus(id, isCompleted);
+            return ResponseEntity.ok(updatedEvent);
+        } catch (ResponseStatusException e) {
+            // Fängt Ausnahmen vom Service ab und gibt den entsprechenden HTTP-Status zurück (z.B. 404)
+            return ResponseEntity.status(e.getStatusCode()).build();
+        }
     }
 }
